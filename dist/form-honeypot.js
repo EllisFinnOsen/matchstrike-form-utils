@@ -29,27 +29,64 @@
 
     var fieldName = form.getAttribute("data-honeypot-field") || "_hp_field";
     var behavior = form.getAttribute("data-honeypot-behavior") || "block";
+    var startTime = Date.now();
+    var minSubmitTime = parseInt(
+      form.getAttribute("data-min-submit-time-ms") || "1200",
+      10
+    );
 
     // Find or create honeypot input
     var hp = form.querySelector('[name="' + fieldName + '"]');
     if (!hp) {
       hp = document.createElement("input");
       hp.type = "text";
-      hp.name = fieldName;
+
+      // Use a non-human-looking default name unless overridden
+      hp.name = fieldName || "_hp_field";
+
+      // Make it very unattractive to autofill
       hp.autocomplete = "off";
+      hp.inputMode = "none";
+
+      // Tell common password managers to ignore this field
+      hp.setAttribute("data-lpignore", "true"); // LastPass
+      hp.setAttribute("data-1p-ignore", "true"); // 1Password
+      hp.setAttribute("data-form-type", "other"); // some managers respect this
+
+      // Keep it out of the accessibility tree and tab order
+      hp.setAttribute("aria-hidden", "true");
+      hp.tabIndex = -1;
+
+      // Existing class for visual hiding
       hp.className = "hp-field";
+
       form.appendChild(hp);
     } else {
-      // Ensure the CSS class is there if user pre-added the field
       if (!hp.classList.contains("hp-field")) {
         hp.classList.add("hp-field");
       }
+
+      hp.autocomplete = "off";
+      hp.inputMode = "none";
+      hp.setAttribute("data-lpignore", "true");
+      hp.setAttribute("data-1p-ignore", "true");
+      hp.setAttribute("data-form-type", "other");
+      hp.setAttribute("aria-hidden", "true");
+      hp.tabIndex = -1;
     }
 
     // Submit handler
     form.addEventListener(
       "submit",
       function (e) {
+        var now = Date.now();
+        if (now - startTime < minSubmitTime) {
+          // Too fast – likely a bot
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+
         if (!hp) return;
 
         var value = (hp.value || "").trim();
